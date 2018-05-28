@@ -42,6 +42,9 @@ import java.util.Map;
 
 public class RNGoogleSigninModule extends ReactContextBaseJavaModule {
     private GoogleApiClient _apiClient;
+    private GoogleApiClient.ConnectionCallbacks signoutConnectionListener;
+    private GoogleApiClient.ConnectionCallbacks signInConnectionListener;
+
 
     public static final int RC_SIGN_IN = 9001;
 
@@ -116,7 +119,7 @@ public class RNGoogleSigninModule extends ReactContextBaseJavaModule {
             promise.reject("NO_ACTIVITY", "NO_ACTIVITY");
             return;
         }
-        
+
         final ConnectionCallbacks connectionCallbacks = new ConnectionCallbacks() {
             @Override
             public void onConnected(@Nullable Bundle bundle) {
@@ -184,6 +187,28 @@ public class RNGoogleSigninModule extends ReactContextBaseJavaModule {
             return;
         }
 
+        if (!_apiClient.isConnected()) {
+            signInConnectionListener = new GoogleApiClient.ConnectionCallbacks() {
+                @Override
+                public void onConnected(Bundle bundle) {
+                    _signIn();
+                }
+
+                @Override
+                public void onConnectionSuspended(int cause) {
+                }
+            };
+
+            _apiClient.connect();
+            _apiClient.registerConnectionCallbacks(signInConnectionListener);
+        } else {
+            _signIn();
+        }
+    }
+
+    private void _signIn() {
+        cleanListener(signInConnectionListener);
+
         final Activity activity = getCurrentActivity();
 
         if (activity == null) {
@@ -206,6 +231,27 @@ public class RNGoogleSigninModule extends ReactContextBaseJavaModule {
             emitError("RNGoogleSignOutError", -1, "GoogleSignin is undefined - call configure first");
             return;
         }
+        if (!_apiClient.isConnected()) {
+                signoutConnectionListener = new GoogleApiClient.ConnectionCallbacks() {
+                    @Override
+                    public void onConnected(Bundle bundle) {
+                        _signOut();
+                    }
+
+                    @Override
+                    public void onConnectionSuspended(int cause) {
+                    }
+                };
+
+                _apiClient.connect();
+                _apiClient.registerConnectionCallbacks(signoutConnectionListener);
+            } else {
+                _signOut();
+            }
+    }
+
+    private void _signOut() {
+        cleanListener(signoutConnectionListener);
 
         Auth.GoogleSignInApi.signOut(_apiClient).setResultCallback(new ResultCallback<Status>() {
             @Override
@@ -220,6 +266,12 @@ public class RNGoogleSigninModule extends ReactContextBaseJavaModule {
                 }
             }
         });
+    }
+
+    private void cleanListener(GoogleApiClient.ConnectionCallbacks listener) {
+        if (listener != null) {
+            _apiClient.unregisterConnectionCallbacks(listener);
+        }
     }
 
     @ReactMethod
